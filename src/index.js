@@ -44,14 +44,14 @@ class Road {
 }
 
 const roads = [];
-for (let i = 0; i < 3; i++) {
+for (let i = 0; i < 7; i++) {
   roads.push(
     new Road({
       id: `${i}`,
       name: `road ${i}`,
       lastMaintained: new Date(Date.now() + i),
       isOperational: true,
-      lanes: 2,
+      lanes: i,
       version: 1,
     })
   );
@@ -136,6 +136,7 @@ router.post("/road", async (ctx) => {
 router.put("/road/:id", async (ctx) => {
   const id = ctx.params.id;
   const road = ctx.request.body;
+  console.log(road);
   road.lastMaintained = new Date();
   const roadId = road.id;
   if (roadId && id !== road.id) {
