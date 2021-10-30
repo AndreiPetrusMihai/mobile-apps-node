@@ -6,6 +6,11 @@ const wss = new WebSocket.Server({ server });
 const Router = require("koa-router");
 const cors = require("koa-cors");
 const bodyparser = require("koa-bodyparser");
+const { Road, User } = require("./entities");
+var koaJwt = require("koa-jwt");
+var jwt = require("jsonwebtoken");
+
+const { JWT_SECRET } = require("./secret");
 
 app.use(bodyparser());
 app.use(cors());
@@ -32,18 +37,11 @@ app.use(async (ctx, next) => {
   }
 });
 
-class Road {
-  constructor({ id, name, lanes, lastMaintained, isOperational, version }) {
-    this.id = id;
-    this.name = name;
-    this.lanes = lanes;
-    this.lastMaintained = lastMaintained;
-    this.isOperational = isOperational;
-    this.version = version;
-  }
-}
-
+const users = [
+  new User({ id: 1, name: "Andrei", email: "andrei@g.com", password: "123" }),
+];
 const roads = [];
+
 for (let i = 0; i < 7; i++) {
   roads.push(
     new Road({
@@ -56,6 +54,7 @@ for (let i = 0; i < 7; i++) {
     })
   );
 }
+
 let lastUpdated = roads[roads.length - 1].lastMaintained;
 let lastId = roads[roads.length - 1].id;
 const pageSize = 10;
@@ -68,6 +67,28 @@ const broadcast = (data) =>
   });
 
 const router = new Router();
+
+router.post("/login", (ctx) => {
+  const { email, password } = ctx.request.body;
+  console.log(users);
+  const user = users.find(
+    (user) => user.email === email && user.password === password
+  );
+
+  if (user) {
+    console.log(user);
+    var token = jwt.sign({ ...user }, JWT_SECRET);
+    console.log(token);
+
+    ctx.response.body = token;
+    ctx.response.status = 200;
+    return;
+  }
+  console.log("Here");
+  ctx.response.status = 401;
+});
+
+app.use(koaJwt({ secret: JWT_SECRET }).unless({ path: [/^\/login/] }));
 
 router.get("/road", (ctx) => {
   const ifModifiedSince = ctx.request.get("If-Modif ied-Since");
@@ -190,6 +211,11 @@ setInterval(() => {
     name: `road ${lastId}`,
     lastMaintained: lastUpdated,
     version: 1,
+    lanes: parseInt(
+      parseFloat(Math.random() * 10)
+        .toString()
+        .split(".")[0]
+    ),
   });
   roads.push(road);
   console.log(`
@@ -201,4 +227,4 @@ setInterval(() => {
 app.use(router.routes());
 app.use(router.allowedMethods());
 
-server.listen(3000);
+server.listen(4000);
