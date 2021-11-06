@@ -1,6 +1,15 @@
 export class Road {
-  constructor({ id, name, lanes, lastMaintained, isOperational, version }) {
+  constructor({
+    id,
+    authorId,
+    name,
+    lanes,
+    lastMaintained,
+    isOperational,
+    version,
+  }) {
     this.id = id;
+    this.authorId = authorId;
     this.name = name;
     this.lanes = lanes;
     this.lastMaintained = lastMaintained;

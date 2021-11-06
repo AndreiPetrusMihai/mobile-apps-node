@@ -3,6 +3,7 @@ const app = new Koa();
 const server = require("http").createServer(app.callback());
 const WebSocket = require("ws");
 const wss = new WebSocket.Server({ server });
+
 const Router = require("koa-router");
 const cors = require("koa-cors");
 const bodyparser = require("koa-bodyparser");
@@ -11,6 +12,8 @@ var koaJwt = require("koa-jwt");
 var jwt = require("jsonwebtoken");
 
 const { JWT_SECRET } = require("./secret");
+const { wssInit, userSockets, sendUpdates } = require("./webSocket");
+wssInit(wss);
 
 app.use(bodyparser());
 app.use(cors());
@@ -38,14 +41,15 @@ app.use(async (ctx, next) => {
 });
 
 const users = [
-  new User({ id: 1, name: "Andrei", email: "andrei@g.com", password: "123" }),
+  new User({ id: 0, name: "Andrei", email: "andrei@g.com", password: "123" }),
 ];
 const roads = [];
 
-for (let i = 0; i < 7; i++) {
+for (let i = 0; i < 20; i++) {
   roads.push(
     new Road({
       id: `${i}`,
+      authorId: parseInt((Math.random() * 100 + 1) % 3),
       name: `road ${i}`,
       lastMaintained: new Date(Date.now() + i),
       isOperational: true,
@@ -59,38 +63,29 @@ let lastUpdated = roads[roads.length - 1].lastMaintained;
 let lastId = roads[roads.length - 1].id;
 const pageSize = 10;
 
-const broadcast = (data) =>
-  wss.clients.forEach((client) => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify(data));
-    }
-  });
-
 const router = new Router();
 
 router.post("/login", (ctx) => {
   const { email, password } = ctx.request.body;
-  console.log(users);
   const user = users.find(
     (user) => user.email === email && user.password === password
   );
 
   if (user) {
-    console.log(user);
     var token = jwt.sign({ ...user }, JWT_SECRET);
-    console.log(token);
 
     ctx.response.body = token;
     ctx.response.status = 200;
     return;
   }
-  console.log("Here");
   ctx.response.status = 401;
 });
 
 app.use(koaJwt({ secret: JWT_SECRET }).unless({ path: [/^\/login/] }));
 
-router.get("/road", (ctx) => {
+router.get("/roads", (ctx) => {
+  const userId = ctx.state.user.id;
+  console.log(userSockets);
   const ifModifiedSince = ctx.request.get("If-Modif ied-Since");
   if (
     ifModifiedSince &&
@@ -103,7 +98,9 @@ router.get("/road", (ctx) => {
   const name = ctx.request.query.name;
   const page = parseInt(ctx.request.query.page) || 1;
   ctx.response.set("Last-Modified", lastUpdated.toUTCString());
-  const sortedRoads = roads
+
+  const userRoads = roads.filter((road) => road.authorId === userId);
+  const sortedRoads = userRoads
     .filter((road) => (name ? road.name.indexOf(name) !== -1 : true))
     .sort(
       (n1, n2) => -(n1.lastMaintained.getTime() - n2.lastMaintained.getTime())
@@ -114,7 +111,7 @@ router.get("/road", (ctx) => {
   //   roads: sortedRoads.slice(offset, offset + pageSize),
   //   more: offset + pageSize < sortedRoads.length
   // };sortedRoads
-  ctx.response.body = roads;
+  ctx.response.body = userRoads;
   ctx.response.status = 200;
 });
 
@@ -133,6 +130,7 @@ router.get("/road/:id", async (ctx) => {
 });
 
 const createroad = async (ctx) => {
+  const userId = ctx.state.user.id;
   const road = ctx.request.body;
   if (!road.name) {
     // validation
@@ -147,7 +145,7 @@ const createroad = async (ctx) => {
   roads.push(road);
   ctx.response.body = road;
   ctx.response.status = 201; // CREATED
-  broadcast({ event: "created", payload: { road } });
+  sendUpdates({ event: "created", payload: { road } }, userId);
 };
 
 router.post("/road", async (ctx) => {
@@ -155,9 +153,9 @@ router.post("/road", async (ctx) => {
 });
 
 router.put("/road/:id", async (ctx) => {
+  const userId = ctx.state.user.id;
   const id = ctx.params.id;
   const road = ctx.request.body;
-  console.log(road);
   road.lastMaintained = new Date();
   const roadId = road.id;
   if (roadId && id !== road.id) {
@@ -188,17 +186,18 @@ router.put("/road/:id", async (ctx) => {
   lastUpdated = new Date();
   ctx.response.body = road;
   ctx.response.status = 200; // OK
-  broadcast({ event: "updated", payload: { road } });
+  sendUpdates({ event: "updated", payload: { road } }, userId);
 });
 
 router.del("/road/:id", (ctx) => {
+  const userId = ctx.state.user.id;
   const id = ctx.params.id;
   const index = roads.findIndex((road) => id === road.id);
   if (index !== -1) {
     const road = roads[index];
     roads.splice(index, 1);
     lastUpdated = new Date();
-    broadcast({ event: "deleted", payload: { road } });
+    sendUpdates({ event: "deleted", payload: { road } }, userId);
   }
   ctx.response.status = 204; // no content
 });
@@ -206,8 +205,10 @@ router.del("/road/:id", (ctx) => {
 setInterval(() => {
   lastUpdated = new Date();
   lastId = `${parseInt(lastId) + 1}`;
+  const authorId = parseInt((Math.random() * 100 + 1) % 3);
   const road = new Road({
     id: lastId,
+    authorId,
     name: `road ${lastId}`,
     lastMaintained: lastUpdated,
     version: 1,
@@ -220,9 +221,9 @@ setInterval(() => {
   roads.push(road);
   console.log(`
    ${road.name}`);
-  console.log("Sending");
-  broadcast({ event: "created", payload: { road } });
-}, 10000);
+  console.log("Created for author " + authorId);
+  sendUpdates({ event: "created", payload: { road } }, authorId);
+}, 100000);
 
 app.use(router.routes());
 app.use(router.allowedMethods());
