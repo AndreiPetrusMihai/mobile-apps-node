@@ -45,23 +45,27 @@ const users = [
 ];
 let roads = [];
 
-for (let i = 0; i < 20; i++) {
+for (let i = 0; i < 100; i++) {
+  const isOperational = parseInt((Math.random() * 20) % 2) === 1;
+  console.log(isOperational);
   roads.push(
     new Road({
       id: `${i}`,
-      authorId: parseInt((Math.random() * 100 + 1) % 3),
+      authorId: parseInt((Math.random() * 100 + 1) % 4),
       name: `road ${i}`,
       lastMaintained: new Date(Date.now() + i),
-      isOperational: true,
+      isOperational,
       lanes: i,
       version: 1,
     })
   );
 }
 
+console.log(roads);
+
 let lastUpdated = roads[roads.length - 1].lastMaintained;
 let lastId = roads[roads.length - 1].id;
-const pageSize = 10;
+const pageSize = 20;
 
 const router = new Router();
 
@@ -94,23 +98,40 @@ router.get("/roads", (ctx) => {
     ctx.response.status = 304; // NOT MODIFIED
     return;
   }
-  const name = ctx.request.query.name;
+  let onlyOperational;
+  if (ctx.request.query.onlyOperational === undefined) {
+    onlyOperational = false;
+  } else {
+    onlyOperational = ctx.request.query.onlyOperational === "true";
+  }
+  const sName = ctx.request.query.sName || "";
   const page = parseInt(ctx.request.query.page) || 1;
+
   ctx.response.set("Last-Modified", lastUpdated.toUTCString());
 
   const userRoads = roads.filter((road) => road.authorId === userId);
-  const sortedRoads = userRoads
-    .filter((road) => (name ? road.name.indexOf(name) !== -1 : true))
-    .sort(
-      (n1, n2) => -(n1.lastMaintained.getTime() - n2.lastMaintained.getTime())
-    );
+  //search
+  const roadsThatMatchName = userRoads.filter((road) =>
+    road.name.includes(sName)
+  );
+
+  let filteredRoads = roadsThatMatchName;
+
+  //filter
+  if (onlyOperational) {
+    filteredRoads = filteredRoads.filter((road) => road.isOperational === true);
+  }
+
   const offset = (page - 1) * pageSize;
-  // ctx.response.body = {
-  //   page,
-  //   roads: sortedRoads.slice(offset, offset + pageSize),
-  //   more: offset + pageSize < sortedRoads.length
-  // };sortedRoads
-  ctx.response.body = userRoads;
+
+  const sortedRoads = filteredRoads.sort(
+    (n1, n2) => -(n1.lastMaintained.getTime() - n2.lastMaintained.getTime())
+  );
+  ctx.response.body = {
+    page,
+    roads: sortedRoads.slice(offset, offset + pageSize),
+    more: offset + pageSize < sortedRoads.length,
+  };
   ctx.response.status = 200;
 });
 
@@ -157,7 +178,7 @@ router.post("/roads/sync", async (ctx) => {
   const newAndUpdatedRoads = ctx.request.body;
 
   newAndUpdatedRoads.forEach((road) => {
-    if (road.id) {
+    if (road.id && !road.createdOnFrontend) {
       roads = roads.map((sRoad) => {
         if (sRoad.id === road.id && sRoad.authorId === userId) {
           const updatedRoad = { ...sRoad, ...road, lastMaintained: new Date() };
@@ -179,7 +200,9 @@ router.post("/roads/sync", async (ctx) => {
       sendUpdates({ event: "created", payload: { road } }, userId);
     }
   });
-  const userRoads = roads.filter((r) => r.authorId === userId);
+  const userRoads = roads
+    .filter((r) => r.authorId === userId)
+    .slice(0, pageSize);
   ctx.response.body = userRoads;
   ctx.response.status = 200; // SUCCESS
 });
@@ -244,6 +267,7 @@ setInterval(() => {
     name: `road ${lastId}`,
     lastMaintained: lastUpdated,
     version: 1,
+    isOperational: false,
     lanes: parseInt(
       parseFloat(Math.random() * 10)
         .toString()
@@ -255,7 +279,7 @@ setInterval(() => {
    ${road.name}`);
   console.log("Created for author " + authorId);
   sendUpdates({ event: "created", payload: { road } }, authorId);
-}, 100000);
+}, 10000);
 
 app.use(router.routes());
 app.use(router.allowedMethods());
