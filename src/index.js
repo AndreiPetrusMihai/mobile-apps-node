@@ -43,7 +43,7 @@ app.use(async (ctx, next) => {
 const users = [
   new User({ id: 0, name: "Andrei", email: "andrei@g.com", password: "123" }),
 ];
-const roads = [];
+let roads = [];
 
 for (let i = 0; i < 20; i++) {
   roads.push(
@@ -85,7 +85,6 @@ app.use(koaJwt({ secret: JWT_SECRET }).unless({ path: [/^\/login/] }));
 
 router.get("/roads", (ctx) => {
   const userId = ctx.state.user.id;
-  console.log(userSockets);
   const ifModifiedSince = ctx.request.get("If-Modif ied-Since");
   if (
     ifModifiedSince &&
@@ -142,6 +141,7 @@ const createroad = async (ctx) => {
   lastId = road.id;
   road.lastMaintained = new Date();
   road.version = 1;
+  road.authorId = userId;
   roads.push(road);
   ctx.response.body = road;
   ctx.response.status = 201; // CREATED
@@ -150,6 +150,38 @@ const createroad = async (ctx) => {
 
 router.post("/road", async (ctx) => {
   await createroad(ctx);
+});
+
+router.post("/roads/sync", async (ctx) => {
+  const userId = ctx.state.user.id;
+  const newAndUpdatedRoads = ctx.request.body;
+
+  newAndUpdatedRoads.forEach((road) => {
+    if (road.id) {
+      roads = roads.map((sRoad) => {
+        if (sRoad.id === road.id && sRoad.authorId === userId) {
+          const updatedRoad = { ...sRoad, ...road, lastMaintained: new Date() };
+          sendUpdates(
+            { event: "updated", payload: { road: updatedRoad } },
+            userId
+          );
+          return updatedRoad;
+        }
+        return sRoad;
+      });
+    } else {
+      road.id = `${parseInt(lastId) + 1}`;
+      lastId = road.id;
+      road.authorId = userId;
+      road.lastMaintained = new Date();
+      road.version = 1;
+      roads = [road, ...roads];
+      sendUpdates({ event: "created", payload: { road } }, userId);
+    }
+  });
+  const userRoads = roads.filter((r) => r.authorId === userId);
+  ctx.response.body = userRoads;
+  ctx.response.status = 200; // SUCCESS
 });
 
 router.put("/road/:id", async (ctx) => {

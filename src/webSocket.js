@@ -35,8 +35,8 @@ export const wssInit = (wss) => {
         jwtPayload = jwt.verify(data, JWT_SECRET);
         userSockets.push({ userId: jwtPayload.id, socket: ws });
       } catch (e) {
-        console.log(e);
         console.log("bad token");
+        ws.close();
       }
     });
 
