@@ -7,6 +7,7 @@ export class Road {
     lastMaintained,
     isOperational,
     version,
+    base64Photo,
   }) {
     this.id = id;
     this.authorId = authorId;
@@ -15,6 +16,7 @@ export class Road {
     this.lastMaintained = lastMaintained;
     this.isOperational = isOperational;
     this.version = version;
+    this.base64Photo = base64Photo;
   }
 }
 

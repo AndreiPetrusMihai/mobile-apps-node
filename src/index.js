@@ -47,7 +47,6 @@ let roads = [];
 
 for (let i = 0; i < 100; i++) {
   const isOperational = parseInt((Math.random() * 20) % 2) === 1;
-  console.log(isOperational);
   roads.push(
     new Road({
       id: `${i}`,
@@ -60,8 +59,6 @@ for (let i = 0; i < 100; i++) {
     })
   );
 }
-
-console.log(roads);
 
 let lastUpdated = roads[roads.length - 1].lastMaintained;
 let lastId = roads[roads.length - 1].id;
@@ -211,9 +208,10 @@ router.put("/road/:id", async (ctx) => {
   const userId = ctx.state.user.id;
   const id = ctx.params.id;
   const road = ctx.request.body;
+
   road.lastMaintained = new Date();
   const roadId = road.id;
-  if (roadId && id !== road.id) {
+  if (roadId && id != road.id) {
     ctx.response.body = {
       issue: [{ error: `Param id and body id should be the same` }],
     };
@@ -224,7 +222,8 @@ router.put("/road/:id", async (ctx) => {
     await createroad(ctx);
     return;
   }
-  const index = roads.findIndex((road) => road.id === id);
+  console.log({ id });
+  const index = roads.findIndex((road) => road.id == id);
   if (index === -1) {
     ctx.response.body = { issue: [{ error: `road with id ${id} not found` }] };
     ctx.response.status = 400; // BAD REQUEST
