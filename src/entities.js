@@ -8,6 +8,8 @@ export class Road {
     isOperational,
     version,
     base64Photo,
+    lat,
+    long,
   }) {
     this.id = id;
     this.authorId = authorId;
@@ -17,6 +19,8 @@ export class Road {
     this.isOperational = isOperational;
     this.version = version;
     this.base64Photo = base64Photo;
+    this.lat = lat;
+    this.long = long;
   }
 }
 

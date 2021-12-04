@@ -278,7 +278,7 @@ setInterval(() => {
    ${road.name}`);
   console.log("Created for author " + authorId);
   sendUpdates({ event: "created", payload: { road } }, authorId);
-}, 10000);
+}, 50000);
 
 app.use(router.routes());
 app.use(router.allowedMethods());
