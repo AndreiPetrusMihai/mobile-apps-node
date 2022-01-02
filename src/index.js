@@ -75,7 +75,7 @@ router.post("/login", (ctx) => {
   if (user) {
     var token = jwt.sign({ ...user }, JWT_SECRET);
 
-    ctx.response.body = token;
+    ctx.response.body = { token };
     ctx.response.status = 200;
     return;
   }
@@ -95,40 +95,41 @@ router.get("/roads", (ctx) => {
     ctx.response.status = 304; // NOT MODIFIED
     return;
   }
-  let onlyOperational;
-  if (ctx.request.query.onlyOperational === undefined) {
-    onlyOperational = false;
-  } else {
-    onlyOperational = ctx.request.query.onlyOperational === "true";
-  }
-  const sName = ctx.request.query.sName || "";
-  const page = parseInt(ctx.request.query.page) || 1;
+  // let onlyOperational;
+  // if (ctx.request.query.onlyOperational === undefined) {
+  //   onlyOperational = false;
+  // } else {
+  //   onlyOperational = ctx.request.query.onlyOperational === "true";
+  // }
+  // const sName = ctx.request.query.sName || "";
+  // const page = parseInt(ctx.request.query.page) || 1;
 
   ctx.response.set("Last-Modified", lastUpdated.toUTCString());
 
-  const userRoads = roads.filter((road) => road.authorId === userId);
+  // const userRoads = roads.filter((road) => road.authorId === userId);
   //search
-  const roadsThatMatchName = userRoads.filter((road) =>
-    road.name.includes(sName)
-  );
+  // const roadsThatMatchName = userRoads.filter((road) =>
+  //   road.name.includes(sName)
+  // );
 
-  let filteredRoads = roadsThatMatchName;
+  // let filteredRoads = roadsThatMatchName;
 
   //filter
-  if (onlyOperational) {
-    filteredRoads = filteredRoads.filter((road) => road.isOperational === true);
-  }
+  // if (onlyOperational) {
+  //   filteredRoads = filteredRoads.filter((road) => road.isOperational === true);
+  // }
 
-  const offset = (page - 1) * pageSize;
+  // const offset = (page - 1) * pageSize;
 
-  const sortedRoads = filteredRoads.sort(
+  const sortedRoads = roads.sort(
     (n1, n2) => -(n1.lastMaintained.getTime() - n2.lastMaintained.getTime())
   );
-  ctx.response.body = {
-    page,
-    roads: sortedRoads.slice(offset, offset + pageSize),
-    more: offset + pageSize < sortedRoads.length,
-  };
+  // ctx.response.body = {
+  //   page,
+  //   roads: sortedRoads.slice(offset, offset + pageSize),
+  //   more: offset + pageSize < sortedRoads.length,
+  // };
+  ctx.response.body = sortedRoads;
   ctx.response.status = 200;
 });
 
@@ -172,8 +173,8 @@ router.post("/road", async (ctx) => {
 
 router.post("/roads/sync", async (ctx) => {
   const userId = ctx.state.user.id;
-  const newAndUpdatedRoads = ctx.request.body;
-
+  const newAndUpdatedRoads = ctx.request.body.roads;
+  console.log(newAndUpdatedRoads);
   newAndUpdatedRoads.forEach((road) => {
     if (road.id && !road.createdOnFrontend) {
       roads = roads.map((sRoad) => {
@@ -278,7 +279,7 @@ setInterval(() => {
    ${road.name}`);
   console.log("Created for author " + authorId);
   sendUpdates({ event: "created", payload: { road } }, authorId);
-}, 50000);
+}, 100000);
 
 app.use(router.routes());
 app.use(router.allowedMethods());
